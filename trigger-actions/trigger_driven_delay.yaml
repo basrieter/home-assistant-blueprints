@@ -1,0 +1,168 @@
+blueprint:
+  name: "[Deprecated] Flexible triggered On/Off (Open/Close) automation with Brightness/Cover position"
+  description: "Triggers an entity (light, switch, cover) to turn On or Off (Open or Close) based on a user-defined trigger, with brightness control for lights and cover position for covers."
+  domain: automation
+
+  input:
+    trigger:
+      name: "Trigger"
+      description: "Define the trigger for this automation."
+      selector:
+        trigger:
+    
+    weekdays:
+      name: "Days of the Week"
+      description: "Select the days on which the automation should run."
+      default: ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]  # Default: all days selected
+      selector:
+        select:
+          mode: list
+          multiple: true
+          options:
+            - label: Monday
+              value: "mon"
+            - label: Tuesday
+              value: "tue"
+            - label: Wednesday
+              value: "wed"
+            - label: Thursday
+              value: "thu"
+            - label: Friday
+              value: "fri"
+            - label: Saturday
+              value: "sat"
+            - label: Sunday
+              value: "sun"
+
+    target_entity:
+      name: "Target Entity"
+      description: "Select the entity (light, switch, cover) to control."
+      selector:
+        entity:
+          domain: 
+            - light
+            - switch
+            - input_boolean
+            - scene
+            - cover
+
+    action_type:
+      name: "Action Type"
+      description: "Select whether to turn the entity ON or OFF."
+      default: "on"  # Default: Turn On
+      selector:
+        select:
+          options:
+            - label: "Turn On / Open"
+              value: "on"
+            - label: "Turn Off / Close"
+              value: "off"
+
+    min_delay:
+      name: Minimum Delay
+      description: The minimum delay time in seconds.
+      default: 0
+      selector:
+        number:
+          min: 0
+          max: 900
+          unit_of_measurement: seconds
+          mode: slider
+    
+    max_delay:
+      name: Maximum Delay
+      description: The maximum delay time in seconds.
+      default: 0
+      selector:
+        number:
+          min: 0
+          max: 900
+          unit_of_measurement: seconds
+          mode: slider
+    
+    brightness_1_100:
+      name: Brightness / Cover Position
+      description: Brightness level (for lights) or Position (for covers) (0-100)
+      default: 100
+      selector:
+        number:
+          min: 0
+          max: 100
+          unit_of_measurement: "%"
+          
+mode: restart  # Ensure automation restarts if triggered again
+
+trigger: !input trigger
+
+condition:
+  - condition: time
+    weekday: !input weekdays
+
+action:
+  - variables:
+      target_entity: !input target_entity
+      min_delay: !input min_delay
+      max_delay: !input max_delay
+      action_type: !input action_type 
+      brightness_1_100: !input brightness_1_100
+      delay_time: "{{ range(min_delay, max_delay + 1) | random }}"
+      brightness_1_255: "{{ (brightness_1_100 * 255 / 100) | int }}"
+
+  - delay: "{{ delay_time }}"
+  
+  - choose:
+      - conditions:
+          - "{{ 'scene.' in target_entity }}"  # Check if the entity is a scene
+        sequence:
+          - service: scene.turn_on
+            target:
+              entity_id: "{{ target_entity }}"
+
+      - conditions:
+          - "{{ 'brightness' in state_attr(target_entity, 'supported_color_modes') | default([]) }}"  # Check if entity supports brightness
+          - "{{ action_type == 'on' }}"  # Only apply brightness when turning on
+        sequence:
+          - service: light.turn_on
+            target:
+              entity_id: !input target_entity
+            data:
+              brightness: "{{ brightness_1_255 }}"
+    
+      - conditions:
+          - "{{ 'cover.' in target_entity }}"
+        sequence:
+          - choose:
+              # Supports current position
+              - conditions: 
+                  - "{{ state_attr(target_entity, 'current_position') is not none }}"
+                  - "{{ action_type == 'on' }}"
+                sequence:
+                  - service: cover.set_cover_position
+                    target:
+                      entity_id: "{{ target_entity }}"
+                    data:
+                      position: "{{ brightness_1_100 }}"
+
+              # Otherwise, just open/close.
+              - conditions:
+                  - "{{ action_type == 'on' }}"
+                sequence:
+                  - service: cover.open_cover
+                    target:
+                      entity_id: "{{ target_entity }}"
+              - conditions:
+                  - "{{ action_type == 'off' }}"
+                sequence:
+                  - service: cover.close_cover
+                    target:
+                      entity_id: "{{ target_entity }}"
+    
+    default:
+      - service: >-
+          {% if action_type == "on" %}
+            homeassistant.turn_on
+          {% else %}
+            homeassistant.turn_off
+          {% endif %}
+        target:
+          entity_id: !input target_entity
