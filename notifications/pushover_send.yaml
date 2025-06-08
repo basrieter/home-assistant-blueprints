@@ -1,0 +1,36 @@
+blueprint:
+  name: Send via Pushover (Priority & Auto Message)
+  description: "Sends a Pushover notification when a trigger occurs, with priority and automatic message formatting."
+  domain: automation
+  input:
+    trigger_event:
+      name: Trigger
+      description: "Select a trigger that will activate the notification."
+      selector:
+        trigger: {}
+
+    priority:
+      name: Priority
+      description: "Select the priority level for the notification."
+      default: "0"
+      selector:
+        select:
+          options:
+            - "0"  # Normal
+            - "-1" # Low
+            - "1"  # High
+            - "2"  # Emergency
+
+mode: parallel
+
+trigger: !input trigger_event
+
+action:
+  - variables:
+      priority: !input priority
+  - service: notify.pushover
+    data:
+      title: "Trigger for '{{ device_attr(trigger.entity_id, 'name') }}'"
+      message: "Device '{{ device_attr(trigger.entity_id, 'name') }}' changed state from '{{ trigger.from_state.state }}' to '{{ trigger.to_state.state }}'."
+      data:
+        priority: "{{ priority | int }}"      
