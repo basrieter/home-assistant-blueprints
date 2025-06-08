@@ -2,3 +2,5 @@
 Just my collection of nice to have Home Assistant Blueprints.
 
 Import them using the url: `https://raw.githubusercontent.com/basrieter/home-assistant-blueprints/main/` followed by the path and file.
+
+Or use the `raw` url provided by Github.
