@@ -1,0 +1,83 @@
+blueprint:
+  name: "Flexible triggered and delayed action"
+  description: "Triggers a custom action based on a user-defined trigger with optional delay and weekday conditions."
+  domain: automation
+
+  input:
+    trigger:
+      name: "Trigger"
+      description: "Define the trigger for this automation."
+      selector:
+        trigger:
+    
+    weekdays:
+      name: "Days of the Week"
+      description: "Select the days on which the automation should run."
+      default: ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
+      selector:
+        select:
+          mode: list
+          multiple: true
+          options:
+            - label: Monday
+              value: "mon"
+            - label: Tuesday
+              value: "tue"
+            - label: Wednesday
+              value: "wed"
+            - label: Thursday
+              value: "thu"
+            - label: Friday
+              value: "fri"
+            - label: Saturday
+              value: "sat"
+            - label: Sunday
+              value: "sun"
+
+    min_delay:
+      name: "Minimum Delay"
+      description: "The minimum delay time in seconds."
+      default: 0
+      selector:
+        number:
+          min: 0
+          max: 900
+          unit_of_measurement: seconds
+          mode: slider
+    
+    max_delay:
+      name: "Maximum Delay"
+      description: "The maximum delay time in seconds."
+      default: 0
+      selector:
+        number:
+          min: 0
+          max: 900
+          unit_of_measurement: seconds
+          mode: slider
+
+    action_block:
+      name: "Custom Actions"
+      description: "Define the actions to execute when triggered."
+      selector:
+        action: {}
+
+mode: restart
+
+trigger: !input trigger
+
+condition:
+  - condition: time
+    weekday: !input weekdays
+
+action:
+  - variables:
+      min_delay: !input min_delay
+      max_delay: !input max_delay
+      delay_time: "{{ range(min_delay, max_delay + 1) | random }}"
+
+  - delay: "{{ delay_time }}"
+
+  - choose:
+      - conditions: []
+        sequence: !input action_block

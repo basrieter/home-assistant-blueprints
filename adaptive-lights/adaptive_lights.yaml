@@ -1,0 +1,332 @@
+blueprint:
+  name: Adaptive Lighting Based on Sun Elevation
+  description: "This blueprint adjusts lighting based on the sun's elevation. Beside a time based trigger, it can trigger based on multiple lights being turned on."
+  domain: automation
+  input:
+    lights:
+      name: Light Entities
+      selector:
+        entity:
+          domain:
+            - light
+          multiple: true
+    
+    description:
+      name: Description
+      description: Optional description for this automation.
+      default: ""
+      selector:
+        text:
+          multiline: true
+    
+    section_elev:
+      name: Elevation Settings
+      icon: mdi:sun-angle-outline
+      description: These options control a specific settings for the sun elevation.
+      collapsed: true
+      input:
+        min_elev:
+          name: Minimum Elevation
+          description: "Minimum sun elevation for light adjustment."
+          default: -10
+          selector:
+            number:
+              min: -90
+              max: 90
+              step: 1
+        max_elev:
+          name: Maximum Elevation
+          description: "Maximum sun elevation for light adjustment."
+          default: 10
+          selector:
+            number:
+              min: -90
+              max: 90
+              step: 1
+    section_brightness:
+      name: Brightness Settings
+      icon: mdi:brightness-7
+      description: These options control a specific settings for the brightness.
+      collapsed: true
+      input:
+        min_brightness:
+          name: Minimum Brightness
+          description: "Minimum brightness level (cannot be less than 1)."
+          default: 1
+          selector:
+            number:
+              min: 1
+              max: 100
+              step: 1
+        max_brightness:
+          name: Maximum Brightness
+          description: "Maximum brightness level."
+          default: 80
+          selector:
+            number:
+              min: 1
+              max: 100
+              step: 1
+        max_deviation:
+          name: Maximum Brightness Deviation
+          description: "The maximum allowed deviation in brightness before adjustment."
+          default: 10
+          selector:
+            number:
+              min: 1
+              max: 50
+              step: 1
+    section_color_temp:
+      name: Color Temperature Settings
+      icon: mdi:palette-outline
+      description: These options control a specific settings for the color temperature.
+      collapsed: true
+      input:
+        enable_color_temp:
+          name: Enable Color Temperature Adjustment
+          description: "Disable this to prevent changes to color temperature."
+          default: true
+          selector:
+            boolean:
+        min_temp:
+          name: Minimum Color Temperature
+          description: "Minimum color temperature in Kelvin."
+          default: 2200
+          selector:
+            number:
+              min: 1000
+              max: 10000
+              step: 100
+        max_temp:
+          name: Maximum Color Temperature
+          description: "Maximum color temperature in Kelvin."
+          default: 4000
+          selector:
+            number:
+              min: 1000
+              max: 10000
+              step: 100
+
+    section_advanced:
+      name: Advanced Adaptive Settings.
+      icon: mdi:cog
+      description: Advanced setttings to control the adaptive lighting.
+      collapsed: true
+      input:
+        transition:
+          name: Transition Time 'Adaptive'
+          description: "Transition time for brightness and color temperature changes during adaptive adjustments."
+          default: 10
+          selector:
+            number:
+              min: 0
+              max: 60
+              step: 1
+
+        transition_on:
+          name: Transition Time 'ON'
+          description: "Transition time for brightness and color temperature changes for the switch 'ON' actions."
+          default: 1
+          selector:
+            number:
+              min: 0
+              max: 5
+              step: 1
+        
+        delay:
+          name: Delay before start
+          description: "The delay to wait before starting (in seconds)."
+          default: 1
+          selector:
+            number:
+              min: 1
+              max: 60
+              step: 1
+
+        interval:
+          name: Interval (minutes)
+          description: Interval at which the adaptive updates take place. Follows the Time pattern trigger patterns.
+          default: "/5"
+
+variables:
+  interval: !input "interval"
+
+# If motion is detected within the delay,
+# we restart the script.
+mode: restart
+max_exceeded: silent
+
+trigger:
+  - platform: state
+    entity_id: !input lights
+    from: "off"
+    to: "on"
+  - platform: state
+    entity_id: !input lights
+    from: "on"
+    to: "off"
+  - platform: time_pattern
+    minutes: !input "interval"
+    seconds: "0"
+    hours: "*"
+
+action:
+  - variables:
+      delay: !input "delay"
+      lights: !input "lights"
+      min_elev: !input "min_elev"
+      max_elev: !input "max_elev"
+      min_brightness: !input "min_brightness"
+      max_brightness: !input "max_brightness"
+      min_temp: !input "min_temp"
+      max_temp: !input "max_temp"
+      transition: !input "transition"
+      transition_on: !input "transition_on"
+      max_deviation: !input "max_deviation"
+      interval: !input "interval"
+
+      elevation: "{{ state_attr('sun.sun', 'elevation') }}"
+      elevation_range: "{{ (max_elev - min_elev) | abs }}"
+      brightness_range: "{{ max_brightness - min_brightness }}"
+      color_temp_range: "{{ max_temp - min_temp }}"
+
+      brightness_target: >-
+        {{ (brightness_range / elevation_range) * (elevation - min_elev) + min_brightness }}
+      brightness: >-
+        {{ [[ brightness_target , max_brightness] | min, min_brightness] | max | int }}
+
+      enable_color_temp: !input "enable_color_temp"
+      color_temp_target: >-
+        {{ (color_temp_range / elevation_range) * (elevation - min_elev) + min_temp }}
+      color_temp: >-
+        {{ [[color_temp_target, max_temp] | min, min_temp] | max | int }}
+
+      triggered_by: >-
+        {{ trigger.entity_id if trigger is defined and trigger.entity_id is defined else 'unknown' }}
+      triggered_by_light: >-
+        {{ trigger.entity_id is defined and
+        trigger.entity_id.startswith('light.') }}
+
+  - delay:
+      hours: 0
+      minutes: 0
+      seconds: "{{ delay }}"
+      milliseconds: 0
+
+  - choose:
+      - conditions:
+          - condition: template
+            value_template: "{{ triggered_by_light }}"
+        alias: Triggered by light, just set this light.
+        sequence:
+          - choose:
+              # Cause a previous run to stop on "Off"?
+              - conditions:
+                  - condition: template
+                    value_template: "{{ is_state(triggered_by, 'off') }}"
+                sequence:
+                  - variables:
+                      light_switched_off_reset: "{{ triggered_by }}"
+              - conditions:
+                  - condition: template
+                    value_template: "{{ enable_color_temp }}"
+                sequence:
+                  - service: light.turn_on
+                    target:
+                      entity_id: "{{ triggered_by }}"
+                    data:
+                      brightness_pct: "{{ brightness | float }}"
+                      transition: "{{ transition_on | int }}"
+                      #color_temp_kelvin: "{{ color_temp | float }}"
+                  
+                  - delay:
+                      # Wait for the transition_on + 1 before transitioning the color temp as some lights don't like the combining them.
+                      hours: 0
+                      minutes: 0
+                      seconds: "{{ (transition_on | int) + 1 }}"
+                      milliseconds: 0
+                  
+                  - service: light.turn_on
+                    target:
+                      entity_id: "{{ triggered_by }}"
+                    data:
+                      #brightness_pct: "{{ brightness | float }}"
+                      transition: "{{ transition_on | int }}"
+                      color_temp_kelvin: "{{ color_temp | float }}"
+            default:
+              - service: light.turn_on
+                target:
+                  entity_id: "{{ triggered_by }}"
+                data:
+                  brightness_pct: "{{ brightness | float }}"
+                  transition: "{{ transition_on | int }}"
+    default:
+      repeat:
+        for_each: "{{ lights | list }}"
+        sequence:
+          - variables:
+              light_target: "{{ repeat.item }}"
+              current_brightness: >-
+                {{ ((state_attr(light_target, 'brightness') | float(0)) / 255 * 100) | int }}
+              brightness_deviation: "{{ (brightness - current_brightness) | abs }}"
+          - choose:
+              - conditions:
+                  - condition: template
+                    value_template: "{{ not is_state(light_target, 'on') }}"
+                alias: >-
+                  For non-light events: Check if the target light is 'On' or
+                  'Off'.
+                sequence: 
+                  - variables:
+                      light_off_entity: "{{ repeat.item }}"
+              - conditions:
+                  - condition: template
+                    value_template: "{{ brightness_deviation == 0 }}"
+                alias: "For non-light events: No adjustment needed."
+                sequence: 
+                  - variables:
+                      already_at_the_spot_entity: "{{ repeat.item }}"
+              - conditions:
+                  - condition: template
+                    value_template: "{{ brightness_deviation > max_deviation }}"
+                alias: >-
+                  For non-light events: Check if the brightness is outside the allowed window.
+                sequence: 
+                  - variables:
+                      too_far_off_entity: "{{ repeat.item }}"
+            default:
+              - choose:
+                  - conditions:
+                      - condition: template
+                        value_template: "{{ enable_color_temp }}"
+                    sequence:
+                      - service: light.turn_on
+                        target:
+                          entity_id: "{{ light_target }}"
+                        data:
+                          transition: "{{ transition | int }}"
+                          brightness_pct: "{{ brightness | float }}"
+                          #color_temp_kelvin: "{{ color_temp | float }}"
+                      
+                      - delay:
+                          # Wait for the transition + 1 before transitioning the color temp as some lights don't like the combining them.
+                          hours: 0
+                          minutes: 0
+                          seconds: "{{ (transition | int) + 1 }}"
+                          milliseconds: 0
+                    
+                      - service: light.turn_on
+                        target:
+                          entity_id: "{{ light_target }}"
+                        data:
+                          transition: "{{ transition | int }}"
+                          #brightness_pct: "{{ brightness | float }}"
+                          color_temp_kelvin: "{{ color_temp | float }}"
+                  
+                default:
+                  - service: light.turn_on
+                    target:
+                      entity_id: "{{ light_target }}"
+                    data:
+                      transition: "{{ transition | int }}"
+                      brightness_pct: "{{ brightness | float }}"
