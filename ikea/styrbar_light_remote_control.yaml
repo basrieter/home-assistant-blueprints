@@ -28,6 +28,26 @@ blueprint:
           max: 100
           step: 1
           unit_of_measurement: "%"
+    color_temp_hold_step:
+      name: Color Temperature Hold Step (Kelvin)
+      description: "Amount to adjust color temperature per hold interval."
+      default: 100
+      selector:
+        number:
+          min: 10
+          max: 1000
+          step: 10
+          unit_of_measurement: "K"
+    color_temp_click_step:
+      name: Color Temperature Click Step (Kelvin)
+      description: "Amount to adjust color temperature on click."
+      default: 200
+      selector:
+        number:
+          min: 20
+          max: 2000
+          step: 20
+          unit_of_measurement: "K"
     delay_ms:
       name: Delay (ms) Between Steps
       description: "Delay in milliseconds between brightness adjustment steps."
@@ -120,6 +140,8 @@ trigger:
 variables:
   light_entity: !input light_entity
   brightness_step: !input 'brightness_step'
+  color_temp_click_step: !input color_temp_click_step
+  color_temp_hold_step: !input color_temp_hold_step
 
 action:
   - choose:
@@ -145,7 +167,7 @@ action:
             target:
               entity_id: !input light_entity
             data:
-              color_temp_kelvin: "{{ state_attr(light_entity, 'color_temp_kelvin') - 200 }}"
+              color_temp_kelvin: "{{ state_attr(light_entity, 'color_temp_kelvin') - color_temp_click_step }}"
       - conditions:
           - condition: trigger
             id: change_color_left_hold
@@ -156,7 +178,7 @@ action:
                   target:
                     entity_id: !input light_entity
                   data:
-                    color_temp_kelvin: "{{ state_attr(light_entity, 'color_temp_kelvin') - 100 }}"
+                    color_temp_kelvin: "{{ state_attr(light_entity, 'color_temp_kelvin') - color_temp_hold_step }}"
                 - delay:
                     milliseconds: !input delay_ms
               until:
@@ -170,7 +192,7 @@ action:
             target:
               entity_id: !input light_entity
             data:
-              color_temp_kelvin: "{{ state_attr(light_entity, 'color_temp_kelvin') + 200 }}"
+              color_temp_kelvin: "{{ state_attr(light_entity, 'color_temp_kelvin') + color_temp_click_step }}"
       - conditions:
           - condition: trigger
             id: change_color_right_hold
@@ -181,7 +203,7 @@ action:
                   target:
                     entity_id: !input light_entity
                   data:
-                    color_temp_kelvin: "{{ state_attr(light_entity, 'color_temp_kelvin') + 100 }}"
+                    color_temp_kelvin: "{{ state_attr(light_entity, 'color_temp_kelvin') + color_temp_hold_step }}"
                 - delay:
                     milliseconds: !input delay_ms
               until:
@@ -222,3 +244,4 @@ action:
                 - condition: trigger
                   id: dim_stop
 mode: restart
+                
