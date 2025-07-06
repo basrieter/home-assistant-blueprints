@@ -219,47 +219,52 @@ action:
             value_template: "{{ triggered_by_light }}"
         alias: Triggered by light, just set this light.
         sequence:
-          - choose:
-              # Cause a previous run to stop on "Off"?
-              - conditions:
-                  - condition: template
-                    value_template: "{{ is_state(triggered_by, 'off') }}"
+          - repeat:
+                for_each: "{{ lights | list }}"
                 sequence:
                   - variables:
-                      light_switched_off_reset: "{{ triggered_by }}"
-              - conditions:
-                  - condition: template
-                    value_template: "{{ enable_color_temp }}"
-                sequence:
-                  - service: light.turn_on
-                    target:
-                      entity_id: "{{ triggered_by }}"
-                    data:
-                      brightness_pct: "{{ brightness | float }}"
-                      transition: "{{ transition_on | int }}"
-                      #color_temp_kelvin: "{{ color_temp | float }}"
-                  
-                  - delay:
-                      # Wait for the transition_on + 1 before transitioning the color temp as some lights don't like the combining them.
-                      hours: 0
-                      minutes: 0
-                      seconds: "{{ (transition_on | int) + 1 }}"
-                      milliseconds: 0
-                  
-                  - service: light.turn_on
-                    target:
-                      entity_id: "{{ triggered_by }}"
-                    data:
-                      #brightness_pct: "{{ brightness | float }}"
-                      transition: "{{ transition_on | int }}"
-                      color_temp_kelvin: "{{ color_temp | float }}"
-            default:
-              - service: light.turn_on
-                target:
-                  entity_id: "{{ triggered_by }}"
-                data:
-                  brightness_pct: "{{ brightness | float }}"
-                  transition: "{{ transition_on | int }}"
+                      light_target: "{{ repeat.item }}"
+                  - choose:
+                      # Cause a previous run to stop on "Off"?
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ is_state(light_target, 'off') }}"
+                        sequence:
+                          - variables:
+                              light_switched_off_reset: "{{ repeat.item }}"
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ enable_color_temp }}"
+                        sequence:
+                          - service: light.turn_on
+                            target:
+                              entity_id: "{{ repeat.item }}"
+                            data:
+                              brightness_pct: "{{ brightness | float }}"
+                              transition: "{{ transition_on | int }}"
+                              #color_temp_kelvin: "{{ color_temp | float }}"
+                          
+                          - delay:
+                              # Wait for the transition_on + 1 before transitioning the color temp as some lights don't like the combining them.
+                              hours: 0
+                              minutes: 0
+                              seconds: "{{ (transition_on | int) + 1 }}"
+                              milliseconds: 0
+                          
+                          - service: light.turn_on
+                            target:
+                              entity_id: "{{ repeat.item }}"
+                            data:
+                              #brightness_pct: "{{ brightness | float }}"
+                              transition: "{{ transition_on | int }}"
+                              color_temp_kelvin: "{{ color_temp | float }}"
+                    default:
+                      - service: light.turn_on
+                        target:
+                          entity_id: "{{ repeat.item }}"
+                        data:
+                          brightness_pct: "{{ brightness | float }}"
+                          transition: "{{ transition_on | int }}"
     default:
       repeat:
         for_each: "{{ lights | list }}"
