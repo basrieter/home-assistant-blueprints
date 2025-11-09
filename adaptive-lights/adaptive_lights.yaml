@@ -148,6 +148,19 @@ blueprint:
           description: Interval at which the adaptive updates take place. Follows the Time pattern trigger patterns.
           default: "/5"
 
+        elevation_winter_offset:
+          name: Winter Elevation Offset
+          description: >
+            Adjustment in degrees applied to the sun elevation in winter.
+            This offset peaks in January, linearly decreases to 0 in April,
+            and rises again from October to January.
+          default: 0
+          selector:
+            number:
+              min: 0
+              max: 25
+              step: 1
+
 variables:
   interval: !input "interval"
 
@@ -185,7 +198,24 @@ action:
       max_deviation: !input "max_deviation"
       interval: !input "interval"
 
-      elevation: "{{ state_attr('sun.sun', 'elevation') }}"
+      elevation_winter_offset: !input "elevation_winter_offset"
+      month: "{{ now().month }}"
+      elevation_correction: >-
+        {% set m = month %}
+        {% set offset = elevation_winter_offset | float(0) %}
+        {% if m <= 1 %}
+          {{ offset }}
+        {% elif m < 5 %}
+          {{ offset * (5 - m) / 3 }}
+        {% elif m <= 9 %}
+          0
+        {% elif m < 13 %}
+          {{ offset * (m - 9) / 3 }}
+        {% else %}
+          0
+        {% endif %}
+      elevation_uncorrected: "{{ state_attr('sun.sun', 'elevation') | float(0) }}"
+      elevation: "{{ elevation_uncorrected + (elevation_correction | float(0)) }}"
       elevation_range: "{{ (max_elev - min_elev) | abs }}"
       brightness_range: "{{ max_brightness - min_brightness }}"
       color_temp_range: "{{ max_temp - min_temp }}"
