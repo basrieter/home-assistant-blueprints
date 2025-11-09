@@ -154,7 +154,7 @@ blueprint:
             Adjustment in degrees applied to the sun elevation in winter.
             This offset peaks in January, linearly decreases to 0 in April,
             and rises again from October to January.
-          default: 0
+          default: 25
           selector:
             number:
               min: 0
