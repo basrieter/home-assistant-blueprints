@@ -198,6 +198,20 @@ action:
       max_deviation: !input "max_deviation"
       interval: !input "interval"
 
+      # Correction based on months:
+      # Jan | ████████████████████ 100.0%
+      # Feb | █████████████         66.7%
+      # Mar | ██████                33.3%
+      # Apr |                        0.0%
+      # May |                        0.0%
+      # Jun |                        0.0%
+      # Jul |                        0.0%
+      # Aug |                        0.0%
+      # Sep |                        0.0%
+      # Oct | ██████                33.3%
+      # Nov | █████████████         66.7%
+      # Dec | ████████████████████ 100.0%
+
       elevation_winter_offset: !input "elevation_winter_offset"
       month: "{{ now().month }}"
       elevation_correction: >-
@@ -205,12 +219,14 @@ action:
         {% set offset = elevation_winter_offset | float(0) %}
         {% if m <= 1 %}
           {{ offset }}
-        {% elif m < 6 %}
-          {{ offset * (5 - m) / 4 }}
-        {% elif m <= 8 %}
+        {% elif m < 5 %}
+          {{ offset * (4 - m) / 3 }}
+        {% elif m <= 9 %}
           0
-        {% elif m < 13 %}
-          {{ offset * (m - 8) / 4 }}
+        {% elif m < 12 %}
+          {{ offset * (m - 9) / 3 }}
+        {% elif m >= 12 %}
+          {{ offset }}
         {% else %}
           0
         {% endif %}
