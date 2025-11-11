@@ -198,38 +198,62 @@ action:
       max_deviation: !input "max_deviation"
       interval: !input "interval"
 
-      # Correction based on months:
-      # Jan | ████████████████████ 100.0%
-      # Feb | █████████████         66.7%
-      # Mar | ██████                33.3%
-      # Apr |                        0.0%
-      # May |                        0.0%
-      # Jun |                        0.0%
-      # Jul |                        0.0%
-      # Aug |                        0.0%
-      # Sep |                        0.0%
-      # Oct | ██████                33.3%
-      # Nov | █████████████         66.7%
-      # Dec | ████████████████████ 100.0%
+      # Week-based correction curve
+      week_start_decrease: 4
+      week_end_decrease: 12
+      week_start_increase: 40
+      week_end_increase: 48 
+
+      # Week 01 | ████████████████████ 100.0%
+      # Week 02 | ████████████████████ 100.0%
+      # Week 03 | ████████████████████ 100.0%
+      # Week 04 | ████████████████████ 100.0%
+      # Week 05 | █████████████████     87.5%
+      # Week 06 | ███████████████       75.0%
+      # Week 07 | ████████████          62.5%
+      # Week 08 | ██████████            50.0%
+      # Week 09 | ███████               37.5%
+      # Week 10 | █████                 25.0%
+      # Week 11 | ██                    12.5%
+      # Week 12 |                        0.0%
+      # Week 13 |                        0.0%
+      # ...
+      # Week 40 |                        0.0%
+      # Week 41 | ██                    12.5%
+      # Week 42 | █████                 25.0%
+      # Week 43 | ███████               37.5%
+      # Week 44 | ██████████            50.0%
+      # Week 45 | ████████████          62.5%
+      # Week 46 | ███████████████       75.0%
+      # Week 47 | █████████████████     87.5%
+      # Week 48 | ████████████████████ 100.0%
+      # Week 49 | ████████████████████ 100.0%
+      # Week 50 | ████████████████████ 100.0%
+      # Week 51 | ████████████████████ 100.0%
+      # Week 52 | ████████████████████ 100.0%
 
       elevation_winter_offset: !input "elevation_winter_offset"
-      month: "{{ now().month }}"
+      week: "{{ now().isocalendar()[1] }}"
       elevation_correction: >-
-        {% set m = month %}
+        {% set w = week | int %}
         {% set offset = elevation_winter_offset | float(0) %}
-        {% if m <= 1 %}
+        {% set start_dec = week_start_decrease %}
+        {% set end_dec = week_end_decrease %}
+        {% set start_inc = week_start_increase %}
+        {% set end_inc = week_end_increase %}
+
+        {% if w <= start_dec %}
           {{ offset }}
-        {% elif m < 5 %}
-          {{ offset * (4 - m) / 3 }}
-        {% elif m <= 9 %}
+        {% elif w < end_dec %}
+          {{ offset * (end_dec - w) / (end_dec - start_dec) }}
+        {% elif w <= start_inc %}
           0
-        {% elif m < 12 %}
-          {{ offset * (m - 9) / 3 }}
-        {% elif m >= 12 %}
-          {{ offset }}
+        {% elif w < end_inc %}
+          {{ offset * (w - start_inc) / (end_inc - start_inc) }}
         {% else %}
-          0
+          {{ offset }}
         {% endif %}
+
       elevation_uncorrected: "{{ state_attr('sun.sun', 'elevation') | float(0) }}"
       elevation: "{{ elevation_uncorrected + (elevation_correction | float(0)) }}"
       elevation_range: "{{ (max_elev - min_elev) | abs }}"
