@@ -43,6 +43,19 @@ blueprint:
               min: -90
               max: 90
               step: 1
+        elevation_winter_offset:
+          name: Winter Elevation Offset
+          description: >
+            Adjustment in degrees applied to the sun elevation in winter.
+            This offset peaks in January, linearly decreases to 0 in April,
+            and rises again from October to January.
+          default: 25
+          selector:
+            number:
+              min: 0
+              max: 40
+              step: 1
+
     section_brightness:
       name: Brightness Settings
       icon: mdi:brightness-7
@@ -147,19 +160,6 @@ blueprint:
           name: Interval (minutes)
           description: Interval at which the adaptive updates take place. Follows the Time pattern trigger patterns.
           default: "/5"
-
-        elevation_winter_offset:
-          name: Winter Elevation Offset
-          description: >
-            Adjustment in degrees applied to the sun elevation in winter.
-            This offset peaks in January, linearly decreases to 0 in April,
-            and rises again from October to January.
-          default: 25
-          selector:
-            number:
-              min: 0
-              max: 40
-              step: 1
 
 variables:
   interval: !input "interval"
