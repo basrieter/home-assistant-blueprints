@@ -347,6 +347,15 @@ action:
                         data:
                           brightness_pct: "{{ brightness | float }}"
                           transition: "{{ transition_on | int }}"
+                  - choose:
+                    - conditions:
+                        - condition: template
+                          value_template: >
+                            {{ threshold_indicator != '' }}
+                      sequence:
+                        - service: homeassistant.turn_off
+                          target:
+                            entity_id: "{{ threshold_indicator }}"
     default:
       repeat:
         for_each: "{{ lights | list }}"
