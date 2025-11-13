@@ -156,6 +156,17 @@ blueprint:
               max: 60
               step: 1
 
+        threshold_indicator:
+          name: Threshold Indicator
+          description: "Entity that turns ON when brightness is outside allowed deviation."
+          default: ""
+          selector:
+            entity:
+              domain:
+                - input_boolean
+                - light
+                - switch
+
         interval:
           name: Interval (minutes)
           description: Interval at which the adaptive updates take place. Follows the Time pattern trigger patterns.
@@ -197,6 +208,7 @@ action:
       transition_on: !input "transition_on"
       max_deviation: !input "max_deviation"
       interval: !input "interval"
+      threshold_indicator: !input "threshold_indicator"
 
       # Week-based correction curve
       week_start_decrease: 4
@@ -354,6 +366,15 @@ action:
                 sequence: 
                   - variables:
                       light_off_entity: "{{ repeat.item }}"
+                  - choose:
+                    - conditions:
+                        - condition: template
+                          value_template: >
+                            {{ threshold_indicator != '' }}
+                      sequence:
+                        - service: homeassistant.turn_off
+                          target:
+                            entity_id: "{{ threshold_indicator }}"
               - conditions:
                   - condition: template
                     value_template: "{{ brightness_deviation == 0 }}"
@@ -361,6 +382,15 @@ action:
                 sequence: 
                   - variables:
                       already_at_the_spot_entity: "{{ repeat.item }}"
+                  - choose:
+                    - conditions:
+                        - condition: template
+                          value_template: >
+                            {{ threshold_indicator != '' }}
+                      sequence:
+                        - service: homeassistant.turn_off
+                          target:
+                            entity_id: "{{ threshold_indicator }}"
               - conditions:
                   - condition: template
                     value_template: "{{ brightness_deviation > max_deviation }}"
@@ -369,6 +399,15 @@ action:
                 sequence: 
                   - variables:
                       too_far_off_entity: "{{ repeat.item }}"
+                  - choose:
+                    - conditions:
+                        - condition: template
+                          value_template: >
+                            {{ threshold_indicator != '' }}
+                      sequence:
+                        - service: homeassistant.turn_on
+                          target:
+                            entity_id: "{{ threshold_indicator }}"
             default:
               - choose:
                   - conditions:
@@ -382,14 +421,14 @@ action:
                           transition: "{{ transition | int }}"
                           brightness_pct: "{{ brightness | float }}"
                           #color_temp_kelvin: "{{ color_temp | float }}"
-                      
+
                       - delay:
                           # Wait for the transition + 1 before transitioning the color temp as some lights don't like the combining them.
                           hours: 0
                           minutes: 0
                           seconds: "{{ (transition | int) + 1 }}"
                           milliseconds: 0
-                    
+
                       - service: light.turn_on
                         target:
                           entity_id: "{{ light_target }}"
@@ -397,11 +436,30 @@ action:
                           transition: "{{ transition | int }}"
                           #brightness_pct: "{{ brightness | float }}"
                           color_temp_kelvin: "{{ color_temp | float }}"
-                  
+
+                      - choose:
+                        - conditions:
+                            - condition: template
+                              value_template: >
+                                {{ threshold_indicator != '' }}
+                          sequence:
+                            - service: homeassistant.turn_off
+                              target:
+                                entity_id: "{{ threshold_indicator }}"
                 default:
-                  - service: light.turn_on
-                    target:
-                      entity_id: "{{ light_target }}"
-                    data:
-                      transition: "{{ transition | int }}"
-                      brightness_pct: "{{ brightness | float }}"
+                  sequence: 
+                    - service: light.turn_on
+                      target:
+                        entity_id: "{{ light_target }}"
+                      data:
+                        transition: "{{ transition | int }}"
+                        brightness_pct: "{{ brightness | float }}"
+                    - choose:
+                      - conditions:
+                          - condition: template
+                            value_template: >
+                              {{ threshold_indicator != '' }}
+                        sequence:
+                          - service: homeassistant.turn_off
+                            target:
+                              entity_id: "{{ threshold_indicator }}"
